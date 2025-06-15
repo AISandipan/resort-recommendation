@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Resort Recommendation</title>
+    {% load django_bootstrap5 %}
+    {% bootstrap_css %}
+
+    <style>
+        .filter-form {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+        }
+        .form-control, .btn {
+            min-width: 180px;
+        }
+    </style>
+</head>
+<body class="container mt-4">
+
+    <h2>Find Similar Resorts</h2>
+
+    <!-- Resort recommendation selection form -->
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="resort">Select a Resort:</label>
+            <select name="resort_name" class="form-control">
+                {% for resort in resorts %}
+                    <option value="{{ resort }}" {% if resort == selected_resort %}selected{% endif %}>{{ resort }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary mt-2">Get Recommendations</button>
+    </form>
+
+    <!-- Region/Rating filter form -->
+    <form id="filter-form" class="filter-form" method="get" action="{% url 'recommend' %}">
+        <select name="region" id="region-select" class="form-control">
+            <option value="">All Regions</option>
+            {% for r in regions %}
+                <option value="{{ r }}" {% if request.GET.region == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="rating" id="rating-select" class="form-control">
+            <option value="">Any Rating</option>
+            {% for rate in ratings %}
+                <option value="{{ rate }}" {% if request.GET.rating == rate|stringformat:"s" %}selected{% endif %}>{{ rate }} & up</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" class="btn btn-secondary">Filter</button>
+    </form>
+
+    <!-- Recommendation results -->
+    <div id="recommendation-container">
+        {% if recommendations %}
+            <h4 class="mt-4">Top Recommendations{% if selected_resort %} for <strong>{{ selected_resort }}</strong>{% endif %}:</h4>
+            <ul class="list-group" id="recommendations-list">
+                {% for resort in recommendations %}
+                    <li class="list-group-item">
+                        <h5>{{ resort.name }} (Similarity Score: {{ resort.similarity }})</h5>
+                        <p><strong>Region:</strong> {{ resort.region }} | <strong>Rating:</strong> {{ resort.rating }}</p>
+                        <p><strong>Description:</strong> {{ resort.description }}</p>
+                        <p><strong>Highlights:</strong> {{ resort.highlights }}</p>
+                    </li>
+                {% empty %}
+                    <li class="list-group-item">No resorts found.</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+
+    <!-- AJAX script -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('filter-form');
+        const resultBox = document.getElementById('recommendation-container');
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const region = document.getElementById('region-select').value;
+            const rating = document.getElementById('rating-select').value;
+
+            const params = new URLSearchParams();
+            if (region) params.append('region', region);
+            if (rating) params.append('rating', rating);
+
+            fetch(`${form.action}?${params.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newContent = doc.getElementById('recommendation-container');
+
+                if (newContent) {
+                    resultBox.innerHTML = newContent.innerHTML;
+                } else {
+                    resultBox.innerHTML = '<p>No data found.</p>';
+                }
+            })
+            .catch(err => {
+                console.error('AJAX error:', err);
+            });
+        });
+    });
+    </script>
+
+</body>
+</html>
